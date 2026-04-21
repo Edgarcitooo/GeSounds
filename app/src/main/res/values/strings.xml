@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">GSoundboard</string>
+    <string name="login_title">Iniciar Sesión</string>
+    <string name="register_title">Registrarse</string>
+    <string name="home_title">Sonidos y Memes</string>
+    <string name="search_title">Buscar Audio</string>
+    <string name="favorites_title">Mis Favoritos</string>
+    <string name="play_button">Reproducir</string>
+    <string name="Soundboard">GeSoundboard</string>
+    <string name="Favorites">Favoritos</string>
+</resources>
