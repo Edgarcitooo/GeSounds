@@ -1,3 +1,6 @@
+package com.example.gesounds.ui.screens
+
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -7,24 +10,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.navigation.compose.rememberNavController
 import com.example.gesounds.ui.navigation.Screen
+import com.example.gesounds.viewmodel.UserViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(navController: NavController) {
-
+fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    val tealColor = Color(0xFF69C2B1)
     val backgroundColor = Color.Black
 
     Column(
@@ -54,7 +56,6 @@ fun LoginScreen(navController: NavController) {
                     .fillMaxWidth()
                     .padding(24.dp)
             ) {
-
                 Text(text = "Correo electrónico", fontSize = 14.sp, color = Color.White)
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
@@ -79,6 +80,7 @@ fun LoginScreen(navController: NavController) {
                     placeholder = { Text("Contraseña", color = Color.LightGray) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
@@ -86,17 +88,24 @@ fun LoginScreen(navController: NavController) {
                     )
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-
-
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
                 Button(
-                    onClick = { navController.navigate(Screen.Home.route) },
+                    onClick = {
+                        userViewModel.login(email, password) { success ->
+                            if (success) {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
+                                }
+                            } else {
+                                Toast.makeText(context, "Credenciales incorrectas", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A397A)),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text("Iniciar sesión", fontSize = 16.sp, color = Color.White)
@@ -128,22 +137,12 @@ fun LoginScreen(navController: NavController) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit." +
-                            " Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut",
+                    text = "Regístrate para guardar tus sonidos favoritos y personalizar tu perfil de GeSounds.",
                     color = Color.White,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center
                 )
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun LoginScreenPreview() {
-    val navControllerLocal = rememberNavController()
-    MaterialTheme {
-        LoginScreen(navControllerLocal)
     }
 }

@@ -1,26 +1,88 @@
+package com.example.gesounds.ui.screens
+
+import android.graphics.Bitmap
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
+import com.example.gesounds.ui.navigation.Screen
+import com.example.gesounds.viewmodel.UserViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(navController: NavController) {
+fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
+    val context = LocalContext.current
+    val usuarioActual by userViewModel.usuarioActual.collectAsState()
+
+    var imageUri by remember { mutableStateOf<Uri?>(null) }
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    var nombres by remember { mutableStateOf("") }
+    var apellidos by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+    var fechaNacimiento by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    LaunchedEffect(usuarioActual) {
+        usuarioActual?.let { user ->
+            nombres = user.nombres
+            apellidos = user.apellidos
+            username = user.nombreUsuario
+            email = user.correo
+            telefono = user.telefono
+            fechaNacimiento = user.fechaNacimiento
+            password = user.contrasena
+            if (user.fotoUri != null) {
+                imageUri = Uri.parse(user.fotoUri)
+            }
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            imageUri = uri
+            bitmap = null
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { b: Bitmap? ->
+        if (b != null) {
+            bitmap = b
+            imageUri = null
+        }
+    }
+
     Scaffold(
         containerColor = Color.Black,
         topBar = {
@@ -39,12 +101,33 @@ fun ProfileScreen(navController: NavController) {
                     )
                 },
                 navigationIcon = {
-                    Button(onClick = { navController.popBackStack() }) {
+                    Button(
+                        onClick = { navController.popBackStack() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+                    ) {
                         Text("Salir", color = Color.White)
                     }
                 },
                 actions = {
-                    Button(onClick = {  }) {
+                    Button(
+                        onClick = {
+                            usuarioActual?.let { user ->
+                                val userActualizado = user.copy(
+                                    nombres = nombres,
+                                    apellidos = apellidos,
+                                    nombreUsuario = username,
+                                    correo = email,
+                                    telefono = telefono,
+                                    fechaNacimiento = fechaNacimiento,
+                                    contrasena = password,
+                                    fotoUri = imageUri?.toString() ?: user.fotoUri
+                                )
+                                userViewModel.actualizarUsuario(userActualizado)
+                                Toast.makeText(context, "Datos guardados", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+                    ) {
                         Text("Guardar", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
@@ -60,47 +143,73 @@ fun ProfileScreen(navController: NavController) {
         ) {
             Spacer(modifier = Modifier.height(24.dp))
 
-
-            Surface(
-                modifier = Modifier.size(120.dp),
-                shape = CircleShape,
-                color = Color.DarkGray
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(Color.DarkGray),
+                contentAlignment = Alignment.Center
             ) {
-
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Foto de perfil",
-                    modifier = Modifier.padding(24.dp),
-                    tint = Color.White
-                )
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap!!.asImageBitmap(),
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else if (imageUri != null) {
+                    AsyncImage(
+                        model = imageUri,
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Sin foto",
+                        tint = Color.White,
+                        modifier = Modifier.size(80.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = { }) {
-                Text("Cambiar foto de perfil", color = Color.White)
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Button(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A397A))
+                ) {
+                    Text("📁 Galería", color = Color.White)
+                }
+                Button(
+                    onClick = { cameraLauncher.launch(null) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A397A))
+                ) {
+                    Text("📷 Cámara", color = Color.White)
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            ProfileItemRow(label = "Nombre(s)", value = "Edgar Adrian")
-            ProfileItemRow(label = "Apellidos", value = "Garcia Perez")
-            ProfileItemRow(label = "Nombre de usuario", value = "Eddgarcitoo")
-
-
-            ProfileItemRow(label = "Correo electrónico", value = "12345678@gmail.com")
-            ProfileItemRow(label = "Número de teléfono", value = "99-32-00-21-33")
-            ProfileItemRow(label = "Fecha de nacimiento", value = "26/08/2006")
-            ProfileItemRow(label = "Contraseña", value = "********")
+            EditableProfileItemRow(label = "Nombre(s)", value = nombres, onValueChange = { nombres = it })
+            EditableProfileItemRow(label = "Apellidos", value = apellidos, onValueChange = { apellidos = it })
+            EditableProfileItemRow(label = "Nombre de usuario", value = username, onValueChange = { username = it })
+            EditableProfileItemRow(label = "Correo electrónico", value = email, onValueChange = { email = it })
+            EditableProfileItemRow(label = "Número de teléfono", value = telefono, onValueChange = { telefono = it })
+            EditableProfileItemRow(label = "Fecha de nacimiento", value = fechaNacimiento, onValueChange = { fechaNacimiento = it })
+            EditableProfileItemRow(label = "Contraseña", value = password, onValueChange = { password = it })
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = {
-                    navController.navigate("login") {
+                    navController.navigate(Screen.Login.route) {
                         popUpTo(0)
                     }
                 },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A397A)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -115,7 +224,7 @@ fun ProfileScreen(navController: NavController) {
 }
 
 @Composable
-fun ProfileItemRow(label: String, value: String) {
+fun EditableProfileItemRow(label: String, value: String, onValueChange: (String) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -134,26 +243,32 @@ fun ProfileItemRow(label: String, value: String) {
                 fontSize = 16.sp,
                 color = Color.White
             )
-            Text(
-                text = value,
-                fontSize = 16.sp,
-                color = Color.White
-            )
-        }
 
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.End
+                    ),
+                    cursorBrush = SolidColor(Color.White),
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = "✏️",
+                    fontSize = 14.sp
+                )
+            }
+        }
         HorizontalDivider(
             thickness = 1.dp,
             color = Color.DarkGray
         )
-    }
-}
-
-
-@Preview(showBackground = true)
-@Composable
-private fun ProfileScreenPreview() {
-    val navControllerLocal = rememberNavController()
-    MaterialTheme {
-        ProfileScreen(navControllerLocal)
     }
 }
