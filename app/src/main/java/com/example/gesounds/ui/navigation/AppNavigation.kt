@@ -18,10 +18,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.gesounds.Datos.AppDatabase
+import com.example.gesounds.ui.screens.DownloadsScreen
 import com.example.gesounds.ui.screens.FavoritesScreen
 import com.example.gesounds.ui.screens.HomeScreen
 import com.example.gesounds.ui.screens.LoginScreen
 import com.example.gesounds.ui.screens.ProfileScreen
+import com.example.gesounds.ui.screens.RecordScreen
 import com.example.gesounds.ui.screens.RegisterScreen
 import com.example.gesounds.ui.screens.SearchScreen
 import com.example.gesounds.viewmodel.SoundViewModel
@@ -73,16 +75,33 @@ fun AppNavigation() {
                 }
 
                 composable(route = Screen.Home.route) {
-                    HomeScreen(navController = navController, viewModel = soundViewModel)
+                    HomeScreen(
+                        navController = navController,
+                        viewModel = soundViewModel,
+                        userViewModel = userViewModel
+                    )
                 }
+
 
                 composable(route = Screen.Profile.route) {
                     ProfileScreen(navController = navController, userViewModel = userViewModel)
                 }
 
                 composable(route = Screen.Search.route) {
-                    SearchScreen(navController)
+                    SearchScreen(navController = navController, viewModel = soundViewModel)
+
+
                 }
+
+                composable(route = Screen.Downloads.route) {
+                    DownloadsScreen(navController = navController, viewModel = soundViewModel)
+
+
+                }
+                composable(route = Screen.Record.route) {
+                    RecordScreen(navController = navController, viewModel = soundViewModel)
+                }
+
 
                 composable(route = Screen.Favorites.route) {
                     FavoritesScreen(navController = navController, viewModel = soundViewModel)

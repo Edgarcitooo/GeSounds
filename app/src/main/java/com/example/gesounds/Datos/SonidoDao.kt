@@ -15,13 +15,15 @@ interface SonidoDao {
     @Query("SELECT * FROM sonidos_table WHERE categoria = :categoria")
     fun getSonidosByCategoria(categoria: String): Flow<List<Sonido>>
 
-
     @Query("SELECT * FROM sonidos_table WHERE esFavorito = 1")
     fun getFavoritos(): Flow<List<Sonido>>
 
+    
+    @Query("SELECT * FROM sonidos_table WHERE esDescargado = 1")
+    fun getDescargados(): Flow<List<Sonido>>
+
     @Update
     suspend fun updateSonido(sonido: Sonido)
-
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSonido(sonido: Sonido)

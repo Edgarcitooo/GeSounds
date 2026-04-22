@@ -16,7 +16,16 @@ class SoundViewModel(private val dao: SonidoDao) : ViewModel() {
     val sonidos: StateFlow<List<Sonido>> = dao.getAllSonidos()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    fun obtenerSonidosFiltrados(usuarioActualId: Int?): List<Sonido> {
+        return sonidos.value.filter { sonido ->
+            sonido.usuarioId == null || sonido.usuarioId == usuarioActualId
+        }
+    }
+
     val favoritos: StateFlow<List<Sonido>> = dao.getFavoritos()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val descargas: StateFlow<List<Sonido>> = dao.getDescargados()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -42,6 +51,24 @@ class SoundViewModel(private val dao: SonidoDao) : ViewModel() {
         viewModelScope.launch {
             val actualizado = sonido.copy(esFavorito = !sonido.esFavorito)
             dao.updateSonido(actualizado)
+        }
+    }
+
+    fun marcarComoDescargado(sonido: Sonido) {
+        viewModelScope.launch {
+            dao.updateSonido(sonido.copy(esDescargado = true))
+        }
+    }
+
+    fun quitarDeDescargas(sonido: Sonido) {
+        viewModelScope.launch {
+            dao.updateSonido(sonido.copy(esDescargado = false))
+        }
+    }
+
+    fun agregarSonidoGrabado(sonido: Sonido) {
+        viewModelScope.launch {
+            dao.insertSonido(sonido)
         }
     }
 }

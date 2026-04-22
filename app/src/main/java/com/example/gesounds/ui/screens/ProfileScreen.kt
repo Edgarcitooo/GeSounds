@@ -1,11 +1,10 @@
 package com.example.gesounds.ui.screens
 
-import android.graphics.Bitmap
+import android.content.Context
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +30,18 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.gesounds.ui.navigation.Screen
 import com.example.gesounds.viewmodel.UserViewModel
+import androidx.core.content.FileProvider
+import java.io.File
+
+
+fun crearUriParaCamara(context: Context): Uri {
+    val file = File(context.cacheDir, "foto_perfil_${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.provider",
+        file
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +50,7 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
     val usuarioActual by userViewModel.usuarioActual.collectAsState()
 
     var imageUri by remember { mutableStateOf<Uri?>(null) }
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
     var nombres by remember { mutableStateOf("") }
     var apellidos by remember { mutableStateOf("") }
@@ -65,21 +75,22 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
         }
     }
 
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             imageUri = uri
-            bitmap = null
         }
     }
 
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { b: Bitmap? ->
-        if (b != null) {
-            bitmap = b
-            imageUri = null
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+
+            imageUri = tempCameraUri
         }
     }
 
@@ -120,6 +131,7 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
                                     telefono = telefono,
                                     fechaNacimiento = fechaNacimiento,
                                     contrasena = password,
+
                                     fotoUri = imageUri?.toString() ?: user.fotoUri
                                 )
                                 userViewModel.actualizarUsuario(userActualizado)
@@ -150,14 +162,7 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
                     .background(Color.DarkGray),
                 contentAlignment = Alignment.Center
             ) {
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap!!.asImageBitmap(),
-                        contentDescription = "Foto de perfil",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else if (imageUri != null) {
+                if (imageUri != null) {
                     AsyncImage(
                         model = imageUri,
                         contentDescription = "Foto de perfil",
@@ -184,7 +189,17 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
                     Text("📁 Galería", color = Color.White)
                 }
                 Button(
-                    onClick = { cameraLauncher.launch(null) },
+                    onClick = {
+                        try {
+
+                            val uri = crearUriParaCamara(context)
+                            tempCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        } catch (e: Exception) {
+
+                            Toast.makeText(context, "Error de cámara: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A397A))
                 ) {
                     Text("📷 Cámara", color = Color.White)

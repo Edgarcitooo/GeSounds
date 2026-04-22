@@ -10,6 +10,9 @@ data class Sonido(
     val nombre: String,
     val categoria: String,
     val colorHex: String,
-    val audioResId: Int,
-    val esFavorito: Boolean = false
+    val audioResId: Int = 0,
+    val esFavorito: Boolean = false,
+    val esDescargado: Boolean = false,
+    val rutaLocal: String? = null,
+    val usuarioId: Int? = null
 )

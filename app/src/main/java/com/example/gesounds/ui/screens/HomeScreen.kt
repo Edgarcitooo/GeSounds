@@ -1,17 +1,22 @@
 package com.example.gesounds.ui.screens
 
+import android.content.ContentValues
+import android.content.Context
+import android.content.Intent
 import android.media.MediaPlayer
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,23 +25,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import com.example.gesounds.Datos.Sonido
 import com.example.gesounds.ui.navigation.Screen
 import com.example.gesounds.viewmodel.SoundViewModel
-import android.content.ContentValues
-import android.content.Context
-import android.os.Environment
-import android.provider.MediaStore
-import android.content.Intent
-import androidx.core.content.FileProvider
+import com.example.gesounds.viewmodel.UserViewModel
 import java.io.File
 import java.io.FileOutputStream
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController, viewModel: SoundViewModel) {
+fun HomeScreen(navController: NavController, viewModel: SoundViewModel, userViewModel: UserViewModel) {
     val context = LocalContext.current
+
+    val usuarioActual by userViewModel.usuarioActual.collectAsState()
     val sonidos by viewModel.sonidos.collectAsState()
+    val sonidosFiltrados = viewModel.obtenerSonidosFiltrados(usuarioActual?.id)
+
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var idSonando by remember { mutableStateOf<Int?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            mediaPlayer?.release()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -74,7 +88,7 @@ fun HomeScreen(navController: NavController, viewModel: SoundViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
-                        onClick = { },
+                        onClick = { navController.navigate(Screen.Downloads.route) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A397A))
                     ) {
                         Text("⏬")
@@ -98,9 +112,19 @@ fun HomeScreen(navController: NavController, viewModel: SoundViewModel) {
                         onClick = { navController.navigate(Screen.Search.route) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A397A))
                     ) {
-                        Text("\uD83D\uDD0E Buscar")
+                        Text("🔍")
                     }
                 }
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate(Screen.Record.route) },
+                containerColor = Color.Red,
+                contentColor = Color.White,
+                shape = CircleShape
+            ) {
+                Text("🎙️", fontSize = 24.sp)
             }
         },
         content = { paddingValues ->
@@ -119,14 +143,38 @@ fun HomeScreen(navController: NavController, viewModel: SoundViewModel) {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    items(sonidos) { sonido ->
+                    items(sonidosFiltrados) { sonido ->
                         SoundItemComposable(
                             sonido = sonido,
                             onClickPlay = {
                                 try {
-                                    val mediaPlayer = MediaPlayer.create(context, sonido.audioResId)
-                                    mediaPlayer.start()
-                                    mediaPlayer.setOnCompletionListener { it.release() }
+                                    if (idSonando == sonido.id && mediaPlayer?.isPlaying == true) {
+                                        mediaPlayer?.stop()
+                                        mediaPlayer?.release()
+                                        mediaPlayer = null
+                                        idSonando = null
+                                    } else {
+                                        mediaPlayer?.stop()
+                                        mediaPlayer?.release()
+
+                                        if (sonido.rutaLocal != null) {
+                                            mediaPlayer = MediaPlayer().apply {
+                                                setDataSource(sonido.rutaLocal)
+                                                prepare()
+                                            }
+                                        } else {
+                                            mediaPlayer = MediaPlayer.create(context, sonido.audioResId)
+                                        }
+
+                                        mediaPlayer?.start()
+                                        idSonando = sonido.id
+
+                                        mediaPlayer?.setOnCompletionListener {
+                                            it.release()
+                                            mediaPlayer = null
+                                            idSonando = null
+                                        }
+                                    }
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Error al reproducir", Toast.LENGTH_SHORT).show()
                                 }
@@ -137,11 +185,14 @@ fun HomeScreen(navController: NavController, viewModel: SoundViewModel) {
                                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             },
                             onClickDownload = {
-
-                                guardarAudioEnDescargas(context, sonido)
+                                if (!sonido.esDescargado) {
+                                    guardarAudioEnDescargas(context, sonido)
+                                    viewModel.marcarComoDescargado(sonido)
+                                } else {
+                                    Toast.makeText(context, "Ya está en tus descargas", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             onClickShare = {
-
                                 compartirAudio(context, sonido)
                             }
                         )
@@ -232,39 +283,63 @@ fun SoundItemComposable(
         }
     }
 }
+
 fun guardarAudioEnDescargas(context: Context, sonido: Sonido) {
     try {
-        val inputStream = context.resources.openRawResource(sonido.audioResId)
-        val fileName = "${sonido.nombre.replace("\n", "_")}.mp3"
-
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, "audio/mpeg")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/GeSounds")
-        }
-
-        val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-
-        if (uri != null) {
-            val outputStream = resolver.openOutputStream(uri)
-            if (outputStream != null) {
-                inputStream.copyTo(outputStream)
-                outputStream.close()
-            }
-            inputStream.close()
-            Toast.makeText(context, "✅ Guardado en Descargas", Toast.LENGTH_SHORT).show()
+        val inputStream = if (sonido.rutaLocal != null) {
+            File(sonido.rutaLocal).inputStream()
         } else {
-            Toast.makeText(context, "❌ Error al crear el archivo", Toast.LENGTH_SHORT).show()
+            context.resources.openRawResource(sonido.audioResId)
         }
+
+        val fileName = "${sonido.nombre.replace("\n", "_")}_${System.currentTimeMillis()}.mp3"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "audio/mpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/GeSounds")
+            }
+
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+                Toast.makeText(context, "Guardado en Descargas", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Error al crear el espacio", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val geSoundsDir = File(downloadsDir, "GeSounds")
+            if (!geSoundsDir.exists()) geSoundsDir.mkdirs()
+
+            val file = File(geSoundsDir, fileName)
+            FileOutputStream(file).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+            Toast.makeText(context, "Guardado en Descargas", Toast.LENGTH_SHORT).show()
+        }
+
+        inputStream.close()
     } catch (e: Exception) {
-        Toast.makeText(context, "❌ Error al descargar", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Error al descargar", Toast.LENGTH_SHORT).show()
     }
 }
-fun compartirAudio(context: Context, sonido: com.example.gesounds.Datos.Sonido) {
+
+fun compartirAudio(context: Context, sonido: Sonido) {
     try {
         val file = File(context.cacheDir, "${sonido.nombre.replace("\n", "_")}.mp3")
-        val inputStream = context.resources.openRawResource(sonido.audioResId)
+
+        val inputStream = if (sonido.rutaLocal != null) {
+            File(sonido.rutaLocal).inputStream()
+        } else {
+            context.resources.openRawResource(sonido.audioResId)
+        }
+
         val outputStream = FileOutputStream(file)
 
         inputStream.copyTo(outputStream)
@@ -282,9 +357,9 @@ fun compartirAudio(context: Context, sonido: com.example.gesounds.Datos.Sonido) 
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(shareIntent, "Compartir audio..."))
+        context.startActivity(Intent.createChooser(shareIntent, "Compartir audio"))
 
     } catch (e: Exception) {
-        android.widget.Toast.makeText(context, "Error al compartir", android.widget.Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Error al compartir", Toast.LENGTH_SHORT).show()
     }
 }
